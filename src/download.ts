@@ -24,7 +24,7 @@ export const download = async (
   new Promise<void>(async (res, rej) => {
     const page = await browser.newPage()
 
-    keep_going(page, `https://2conv.com/en2/converter/`, 20)
+    keep_going(page, `https://2conv.com/en2/converter/`, 5)
 
     const download_path = resolve(
       out,
@@ -63,15 +63,22 @@ export const download = async (
               const dist = fs.createWriteStream(resolve(download_path), {
                 encoding: 'utf-8',
               })
-              
+
               const totalSize = +r.headers['content-length']
               let downloadedSize = 0
+              let slow_crash = setTimeout(() => {
+                fs.removeSync(download_path)
+                rej(true)
+              }, 10000)
 
               r.data.on('close', async () => {
                 !page.isClosed() &&
                   (await page
                     .close()
-                    .then(() => ui.updateBottomBar(`Downloaded ${track.name}`))
+                    .then(() => {
+                      clearTimeout(slow_crash)
+                      ui.updateBottomBar(`Downloaded ${track.name}`)
+                    })
                     .catch(_ => {
                       console.log('🐱')
                     }))
@@ -80,9 +87,19 @@ export const download = async (
 
               r.data.on('data', (c: any) => {
                 downloadedSize += c.length
+                slow_crash.refresh()
                 ui.updateBottomBar(
-                  `${track.name} [${(downloadedSize / totalSize * 100).toFixed(2)}%]`
+                  `${track.name} [${(
+                    (downloadedSize / totalSize) *
+                    100
+                  ).toFixed(2)}%]`
                 )
+              })
+
+              dist.on('close', () => {
+                downloadedSize == totalSize
+                  ? res()
+                  : (fs.removeSync(download_path), rej(true))
               })
 
               return r.data.pipe(dist)

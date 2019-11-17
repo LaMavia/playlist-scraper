@@ -45,12 +45,11 @@ dotenv.config()
         status.updateBottomBar(`[${i}/${len0}] ${t.track.name}`)
       })
       .catch(
-        (t => () => {
-          console.log(`Error downloading ${t.track.name}`)
-          if (repeat_) items.push(t)
-          else {
-            console.log(`Failed to download ${t.track.name}`)
-          }
+        (t => (rep: boolean | undefined) => {
+          status.updateBottomBar(
+            `[${i}/${len0}] Error downloading ${t.track.name}`
+          )
+          if (repeat || rep) items.push(t)
         })(t)
       )
   }
