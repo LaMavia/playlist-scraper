@@ -16,9 +16,12 @@ interface TrackInner extends Partial<Track> {
 }
 
 export const scrapeSearch = async (
-  track: Spotify.Track,
+  track: Spotify.Track | Track,
   browser: pptr.Browser
-) => {
+): Promise<Track> => {
+  // -------- Checking whether the track's already been scraped  -------- //
+  if ((track as Track).url) return track as Track
+
   const page = await browser.newPage()
   await page.goto(makeSearchURI(track))
 

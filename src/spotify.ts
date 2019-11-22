@@ -12,7 +12,7 @@ const encodeBase64 = (s: string) => Buffer.from(s).toString('base64')
 
 export const getID = (s: string): string => {
   if (/^https?:\/\/.+/.test(s)) {
-    const matches = s.match(/playlist\/(\w+)\?/)
+    const matches = s.match(/playlist\/(\w+)\??/)
 
     if (!matches) throw new Error(`Invalid playlist url ${s}`)
     return matches[1]
