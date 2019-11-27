@@ -3,10 +3,11 @@ import * as Playlist from './playlist'
 import * as YT from './youtube'
 import * as Spotify from './spotify'
 import * as Download from './download'
-import { log as mklog, load_env } from './util'
+import { log as mklog, log } from './util'
 import inq from 'inquirer'
 import fs from 'fs-extra'
 import { resolve } from 'path'
+import { load_env, num, bool } from './env'
 
 load_env()
 ;(async () => {
@@ -37,7 +38,7 @@ load_env()
 
   const browser = await pptr.launch({
     headless: !false,
-    timeout: +process.env['GOTO'],
+    timeout: num('GOTO'),
   })
 
   let completedCount = 0
@@ -77,17 +78,17 @@ load_env()
       })
       .then(() => {
         completedCount++
-        log(`Downloaded ${t.track.name}`)
+        return log(`Downloaded ${t.track.name}`)
       })
       .catch(
         (t => (rep: boolean | undefined) => {
           log(`Error downloading ${t.track.name}`)
-          if (repeat || rep || process.env['REPEAT']) items.push(t)
+          if (repeat || rep || bool('REPEAT')) items.push(t)
         })(t)
       )
 
     // -------- Close any rogue pages to prevent memory leaks -------- //
-    for (const page of (await browser.pages()).slice(1)) {
+    for (const page of (await browser.pages()).slice(1) || []) {
       !page.isClosed() &&
         (await page.close().catch(_ => {
           ui.updateBottomBar(
@@ -97,6 +98,7 @@ load_env()
     }
   }
 
+  console.log('Closing the browser')
   await browser.close()
   return 0
 })()

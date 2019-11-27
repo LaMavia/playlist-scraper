@@ -1,5 +1,4 @@
 import pptr from 'puppeteer'
-import dotenv from 'dotenv'
 
 type reject = <T>(reason?: T) => void
 
@@ -46,32 +45,3 @@ export const keep_going = (page: pptr.Page, url: string, toleration: number) =>
 
 export const log = (i: number, t: number, ui: any) => (msg: string) =>
   ui.updateBottomBar(`[${i}/${t}] ${msg}`)
-
-export const load_env = () => {
-  dotenv.config()
-
-  // -------- Replace the missing env vars with the default ones -------- //
-  const DEFAULT_ENV = {
-    BUTTON_FAIL: 15000,
-    GOTO: 5000,
-    REPEAT: false,
-    SLOW_CRASH: 5000,
-  } as { [key: string]: any }
-
-  for (const key in DEFAULT_ENV) {
-    // @ts-ignore
-    if (typeof process.env[key] == 'undefined')
-      process.env[key] = DEFAULT_ENV[key]
-    else
-      switch (typeof DEFAULT_ENV[key]) {
-        case 'number':
-          // @ts-ignore
-          process.env[key] = Number(process.env[key])
-        case 'boolean':
-          // @ts-ignore
-          process.env[key] = Boolean(process.env[key])
-      }
-
-    console.log(`${key} = ${process.env[key]} [${typeof process.env[key]}]`)
-  }
-}

@@ -46,7 +46,7 @@ export const scrapeSearch = async (
         .trim()
         .split(' ')
         .filter(Boolean)
-        .map(t => new RegExp(t.replace(/[\.\\\*\+\[\]\(\)]*/g, ''), 'i'))
+        .map(t => new RegExp(t.replace(/[\.\\\*\+\[\]\(\)]*/gi, ''), 'i'))
 
       const score_of_track = (t: TrackInner): number =>
         t.matches / (duration_ms - (t.duration_ms || 0))

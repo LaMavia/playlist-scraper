@@ -89,15 +89,6 @@ export const reqPlaylist = (
   token_type: string,
   token: string
 ): Promise<PlaylistResponse> => {
-  // return fs
-  //   .readFile(resolve(process.cwd(), 'log.json'), 'utf-8')
-  //   .then(
-  //     x =>
-  //       ({
-  //         items: JSON.parse(x),
-  //       } as any)
-  //   )
-  //   .catch(console.error)
   return axios
     .request({
       url: makePlaylistURI(id),

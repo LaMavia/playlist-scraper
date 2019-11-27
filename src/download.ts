@@ -4,6 +4,8 @@ import fs from 'fs-extra'
 import { resolve } from 'path'
 import { wait, click, keep_going, log as mklog } from './util'
 import pptr from 'puppeteer'
+import { clearInterval } from 'timers'
+import { num } from './env'
 
 const watch_id_rex = /v=([-_\w]+)/i
 const get_id = (t: YT.Track) => {
@@ -25,6 +27,8 @@ export const download = async (
   new Promise<void>(async (res, rej) => {
     const log = mklog(index, total, ui)
     const page = await browser.newPage()
+    page.on('dialog', d => d.dismiss())
+
     let errorGoing = await keep_going(page, `https://2conv.com/`, 5).catch(
       () => true
     )
@@ -56,7 +60,7 @@ export const download = async (
     )
 
     log('Clicked the "Process" button')
-    const buttonFailTimeout = setTimeout(rej, +process.env['BUTTON_FAIL'])
+    const buttonFailTimeout = setTimeout(rej, num('BUTTON_FAIL'))
 
     await page.setRequestInterception(true)
 
@@ -72,6 +76,7 @@ export const download = async (
           })
             .then(r => {
               log(`Downloading ${track.name}`)
+              clearInterval(downloadClicker)
               const dist = fs.createWriteStream(resolve(download_path), {
                 encoding: 'utf-8',
               })
@@ -83,7 +88,7 @@ export const download = async (
                 r.data.destroy()
                 dist.destroy()
                 rej(true)
-              }, +process.env['SLOW_CRASH'])
+              }, num('SLOW_CRASH'))
 
               r.data.on('close', async () => {
                 !page.isClosed() &&
@@ -92,11 +97,11 @@ export const download = async (
                     .then(() => {
                       clearTimeout(slow_crash)
                       log(`Downloaded ${track.name}`)
+                      res()
                     })
                     .catch(_ => {
                       console.log('🐱')
                     }))
-                res()
               })
 
               r.data.on('data', (c: any) => {
@@ -124,17 +129,26 @@ export const download = async (
             .catch(rej)
         } else e.continue()
       })
+      .on('response', async e => {
+        if (e.url().match(/\.mp3/i) && !e.ok()) {
+          log(`Failed to download ${track.name}`)
+          await wait(500)
+          rej(false)
+        }
+      })
       .on('error', e => {
         console.log(`Page Error: ${e.message}`)
         return page.reload()
       })
 
-    await click(
-      page,
-      '#layout > header > div.container.header__container > div.convert-form > div > div.download__buttons > button'
-    ).then(() => buttonFailTimeout.refresh())
+    const downloadClicker = setInterval(async () => {
+      await click(
+        page,
+        '#layout > header > div.container.header__container > div.convert-form > div > div.download__buttons > button'
+      ).then(() => buttonFailTimeout.refresh())
 
-    log('Clicked the "Download" button')
+      log('Clicked the "Download" button')
+    }, num('BUTTON_FAIL') / 4)
 
     // -------- Check for the unable-to-download monad -------- //
     const unableToDownload = await page
@@ -151,5 +165,7 @@ export const download = async (
       })
       .catch(_ => true)
 
-    if (unableToDownload) rej(true)
+    if (unableToDownload) {
+      rej(true)
+    }
   })
