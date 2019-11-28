@@ -69,6 +69,8 @@ export const download = async (
         if (e.url().match(/\.mp3/i)) {
           await e.abort('blockedbyclient')
           clearTimeout(buttonFailTimeout)
+          clearInterval(downloadClicker)
+        
           axios({
             url: e.url(),
             method: 'GET',
@@ -76,7 +78,6 @@ export const download = async (
           })
             .then(r => {
               log(`Downloading ${track.name}`)
-              clearInterval(downloadClicker)
               const dist = fs.createWriteStream(resolve(download_path), {
                 encoding: 'utf-8',
               })
@@ -94,14 +95,14 @@ export const download = async (
                 !page.isClosed() &&
                   (await page
                     .close()
-                    .then(() => {
-                      clearTimeout(slow_crash)
-                      log(`Downloaded ${track.name}`)
-                      res()
-                    })
-                    .catch(_ => {
+                    .then(res)
+                    .catch(async e => {
+                      if (/closeTarget/gi.test(String(e))) return
+                      log(`Error while downloading: ${e}`)
+                      await wait(2000)
                       console.log('🐱')
-                    }))
+                    })
+                    .finally(() => clearTimeout(slow_crash)))
               })
 
               r.data.on('data', (c: any) => {
@@ -145,10 +146,11 @@ export const download = async (
       await click(
         page,
         '#layout > header > div.container.header__container > div.convert-form > div > div.download__buttons > button'
-      ).then(() => buttonFailTimeout.refresh())
-
-      log('Clicked the "Download" button')
+      )
     }, num('BUTTON_FAIL') / 4)
+
+    log('Clicked the "Download" button')
+    buttonFailTimeout.refresh()
 
     // -------- Check for the unable-to-download monad -------- //
     const unableToDownload = await page

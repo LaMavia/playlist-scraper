@@ -23,7 +23,7 @@ load_env()
 
   // -------- Prepare the dir -------- //
   await fs.mkdir(resolve(process.cwd(), out)).catch(_ => {
-    /* Dir already exists */
+    /* The dir already exists */
   })
 
   const id = Spotify.getID(url_or_id)
@@ -83,9 +83,12 @@ load_env()
       .catch(
         (t => (rep: boolean | undefined) => {
           log(`Error downloading ${t.track.name}`)
+          // console.error(rep)
           if (repeat || rep || bool('REPEAT')) items.push(t)
         })(t)
       )
+
+    if (completedCount == totalItems) break
 
     // -------- Close any rogue pages to prevent memory leaks -------- //
     for (const page of (await browser.pages()).slice(1) || []) {
@@ -98,7 +101,9 @@ load_env()
     }
   }
 
-  console.log('Closing the browser')
-  await browser.close()
+  console.log('\nClosing the browser')
+  await browser.close().then(() => {
+    process.exit(0)
+  })
   return 0
 })()

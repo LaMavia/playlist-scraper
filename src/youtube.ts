@@ -3,7 +3,9 @@ import pptr from 'puppeteer'
 
 const makeSearchURI = (track: Spotify.Track): string =>
   `https://www.youtube.com/results?search_query=${encodeURIComponent(
-    `${track.album ? track.album.artists[0].name : ''} ${track.name}`
+    `"${
+      track.album ? track.album.artists[0].name.toLowerCase() : ''
+    }" "${track.name.toLowerCase()}"`
   )}&sp=EgIQAQ%253D%253D`
 
 export interface Track extends Spotify.Track {
@@ -28,12 +30,65 @@ export const scrapeSearch = async (
   await page.waitForSelector(
     'span.style-scope.ytd-thumbnail-overlay-time-status-renderer'
   )
+
   const res = await page.evaluate(
     (duration_ms: number, title: string, author: string): Track => {
       const RESULT_SEL = '#contents > ytd-video-renderer'
       const TITLE_SEL = '#video-title'
       const DURATION_SEL =
         '#overlays > ytd-thumbnail-overlay-time-status-renderer > span'
+
+      const score = (target_track: Track, track: TrackInner) => {
+        // -------- Utility functions -------- //
+        const normalize = (x: string, i: number) =>
+          x.toLowerCase().replace(/\W/gi, '')
+
+        const asciify = (s: string) => s.replace(/[^\x00-\x7F]/g, '')
+
+        const count = (vec: number[], x: string) => {
+          const j = words.indexOf(x)
+          j !== -1 && vec[j]++
+          return vec
+        }
+
+        const make_words = (t: TrackInner | Track): string[] => {
+          const from_title = t.name ? t.name.split(/\s+/) : []
+          const from_author = t.album
+            ? t.album.artists[0].name.split(/\s+/)
+            : []
+
+          return [...from_title, ...from_author]
+        }
+
+        // -------- Algoryth -------- //
+
+        const words_right = make_words(target_track)
+        const words_track = make_words(track)
+
+        // -------- Vector of all the words -------- //
+        const words: string[] = Array.from(
+          new Set([...words_right, ...words_track].map(normalize))
+        )
+
+        // -------- Vectors of the words in the titles -------- //
+        const w1 = words_right.reduce(count, new Array(words.length).fill(0))
+
+        const w2 = words_track.reduce(count, new Array(words.length).fill(0))
+
+        // -------- Make vectors accounting for meta data -------- //
+        const v1 = w1.concat(target_track.duration_ms / 10000)
+        const v2 = w2.concat((track.duration_ms || 0) / 10000)
+
+        // -------- Calc the cos -------- //
+        const dot_product = v1.reduce((acc, a, i) => (acc += a * v2[i]), 0)
+
+        const denominator = Math.sqrt(
+          v1.reduce((acc, x) => (acc += x ** 2)) *
+            v2.reduce((acc, x) => (acc += x ** 2))
+        )
+
+        return dot_product / denominator
+      }
 
       const parseTime = (t: string) =>
         t
@@ -48,8 +103,15 @@ export const scrapeSearch = async (
         .filter(Boolean)
         .map(t => new RegExp(t.replace(/[\.\\\*\+\[\]\(\)]*/gi, ''), 'i'))
 
-      const score_of_track = (t: TrackInner): number =>
-        t.matches / (duration_ms - (t.duration_ms || 0))
+      const score_of_track = (t: TrackInner) =>
+        score({ name: title, duration_ms, author } as any, t)
+      /**
+       * (t: TrackInner): number =>
+        t.matches /
+        (t.duration_ms && duration_ms <= t.duration_ms
+          ? duration_ms - (t.duration_ms || 0)
+          : 10 ** 15)
+       */
 
       const match = Array.from(document.querySelectorAll(RESULT_SEL))
         .map(r => {
@@ -94,6 +156,7 @@ export const scrapeSearch = async (
   )
 
   await page.close()
+  console.log(`\n${track.album.artists[0].name} - ${track.name} => ${res.name}`)
   res.name = `${track.name} ~ ${track.album.artists[0].name}`
   return res
 }
