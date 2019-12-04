@@ -39,6 +39,10 @@ load_env()
   const browser = await pptr.launch({
     headless: !false,
     timeout: num('GOTO'),
+    args: [
+        '--incognito',
+        '--lang=en-US,en'
+    ]
   })
 
   let completedCount = 0

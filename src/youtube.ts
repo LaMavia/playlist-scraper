@@ -4,8 +4,8 @@ import pptr from 'puppeteer'
 const makeSearchURI = (track: Spotify.Track): string =>
   `https://www.youtube.com/results?search_query=${encodeURIComponent(
     `"${
-      track.album ? track.album.artists[0].name.toLowerCase() : ''
-    }" "${track.name.toLowerCase()}"`
+      track.album ? track.album.artists.map(a => a.name).join(' ') : ''
+    }" ${track.name.toLowerCase()}`
   )}&sp=EgIQAQ%253D%253D`
 
 export interface Track extends Spotify.Track {
@@ -25,6 +25,9 @@ export const scrapeSearch = async (
   if ((track as Track).url) return track as Track
 
   const page = await browser.newPage()
+  page.setExtraHTTPHeaders({
+    // 'Accept-Language': 'en',
+  })
   await page.goto(makeSearchURI(track))
 
   await page.waitForSelector(
@@ -43,8 +46,6 @@ export const scrapeSearch = async (
         const normalize = (x: string, i: number) =>
           x.toLowerCase().replace(/\W/gi, '')
 
-        const asciify = (s: string) => s.replace(/[^\x00-\x7F]/g, '')
-
         const count = (vec: number[], x: string) => {
           const j = words.indexOf(x)
           j !== -1 && vec[j]++
@@ -54,7 +55,15 @@ export const scrapeSearch = async (
         const make_words = (t: TrackInner | Track): string[] => {
           const from_title = t.name ? t.name.split(/\s+/) : []
           const from_author = t.album
-            ? t.album.artists[0].name.split(/\s+/)
+            ? t.album.artists.reduce(
+                (acc, a) =>
+                  acc.concat(
+                    a.name === 'Various Artists'
+                      ? []
+                      : a.name.split(/\s+/).map(normalize)
+                  ),
+                [] as string[]
+              ) // [0].name.split(/\s+/)
             : []
 
           return [...from_title, ...from_author]
@@ -76,8 +85,8 @@ export const scrapeSearch = async (
         const w2 = words_track.reduce(count, new Array(words.length).fill(0))
 
         // -------- Make vectors accounting for meta data -------- //
-        const v1 = w1.concat(target_track.duration_ms / 10000)
-        const v2 = w2.concat((track.duration_ms || 0) / 10000)
+        const v1 = w1
+        const v2 = w2
 
         // -------- Calc the cos -------- //
         const dot_product = v1.reduce((acc, a, i) => (acc += a * v2[i]), 0)
@@ -87,7 +96,9 @@ export const scrapeSearch = async (
             v2.reduce((acc, x) => (acc += x ** 2))
         )
 
-        return dot_product / denominator
+        const d_duration = Math.abs((track.duration_ms || 0) - duration_ms) || 1 // Prevent infinite results
+
+        return dot_product / denominator / d_duration
       }
 
       const parseTime = (t: string) =>
@@ -103,8 +114,12 @@ export const scrapeSearch = async (
         .filter(Boolean)
         .map(t => new RegExp(t.replace(/[\.\\\*\+\[\]\(\)]*/gi, ''), 'i'))
 
+      const score_word_match = (t: TrackInner) => t.matches / 1000
+
       const score_of_track = (t: TrackInner) =>
-        score({ name: title, duration_ms, author } as any, t)
+        score({ name: title, duration_ms, author } as any, t) /
+        ((t.name || '').split(/\s+/gi).length + 1)
+
       /**
        * (t: TrackInner): number =>
         t.matches /
