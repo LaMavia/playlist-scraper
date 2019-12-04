@@ -172,6 +172,8 @@ export const scrapeSearch = async (
 
   await page.close()
   console.log(`\n${track.album.artists[0].name} - ${track.name} => ${res.name}`)
-  res.name = `${track.name} ~ ${track.album.artists[0].name}`
+  res.name = `${track.name} ~ ${track.album.artists
+    .map(a => a.name)
+    .join(', ')}`
   return res
 }
