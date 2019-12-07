@@ -3,7 +3,7 @@ import * as Playlist from './playlist'
 import * as YT from './youtube'
 import * as Spotify from './spotify'
 import * as Download from './download'
-import { log as mklog, log } from './util'
+import { log as mklog, log, wait } from './util'
 import inq from 'inquirer'
 import fs from 'fs-extra'
 import { resolve } from 'path'
@@ -22,8 +22,8 @@ load_env()
     `)
 
   // -------- Prepare the dir -------- //
-  await fs.mkdir(resolve(process.cwd(), out)).catch(_ => {
-    /* The dir already exists */
+  await fs.mkdir(resolve(process.cwd(), out)).catch(e => {
+    console.error(`Error making ${out}; ${e}`)
   })
 
   const id = Spotify.getID(url_or_id)
@@ -36,14 +36,16 @@ load_env()
   })
   ui.updateBottomBar(`Fetched ${items.length} items from the Spotify API`)
 
-  const browser = await pptr.launch({
-    headless: !false,
-    timeout: num('GOTO'),
-    args: [
-        '--incognito',
-        '--lang=en-US,en'
-    ]
-  })
+  const browser = await pptr
+    .launch({
+      headless: !false,
+      timeout: num('GOTO'),
+      args: ['--incognito', '--lang=en-US,en'],
+    })
+    .catch(r => {
+      console.error(`Error launching the Browser; ${r}`)
+    })
+  if (!browser) return
 
   let completedCount = 0
   const totalItems = items.length

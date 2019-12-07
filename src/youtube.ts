@@ -15,6 +15,7 @@ export interface Track extends Spotify.Track {
 interface TrackInner extends Partial<Track> {
   matches: number
   score: number
+  artist: string
 }
 
 export const scrapeSearch = async (
@@ -41,13 +42,13 @@ export const scrapeSearch = async (
       const DURATION_SEL =
         '#overlays > ytd-thumbnail-overlay-time-status-renderer > span'
 
+      const normalize = (x: string) => x.toLowerCase().replace(/\W/gi, '')
+
       const score = (target_track: Track, track: TrackInner) => {
         // -------- Utility functions -------- //
-        const normalize = (x: string, i: number) =>
-          x.toLowerCase().replace(/\W/gi, '')
 
         const count = (vec: number[], x: string) => {
-          const j = words.indexOf(x)
+          const j = words.indexOf(normalize(x))
           j !== -1 && vec[j]++
           return vec
         }
@@ -58,13 +59,11 @@ export const scrapeSearch = async (
             ? t.album.artists.reduce(
                 (acc, a) =>
                   acc.concat(
-                    a.name === 'Various Artists'
-                      ? []
-                      : a.name.split(/\s+/).map(normalize)
+                    a.name.split(/\s+/).filter(Boolean) // /(various)/i.test(a.name) ? [] :
                   ),
                 [] as string[]
               ) // [0].name.split(/\s+/)
-            : []
+            : [] // (t.name || '').split(/\s+/)
 
           return [...from_title, ...from_author]
         }
@@ -76,7 +75,9 @@ export const scrapeSearch = async (
 
         // -------- Vector of all the words -------- //
         const words: string[] = Array.from(
-          new Set([...words_right, ...words_track].map(normalize))
+          new Set(
+            [...words_right, ...words_track].map(normalize).filter(Boolean)
+          )
         )
 
         // -------- Vectors of the words in the titles -------- //
@@ -96,9 +97,12 @@ export const scrapeSearch = async (
             v2.reduce((acc, x) => (acc += x ** 2))
         )
 
-        const d_duration = Math.abs((track.duration_ms || 0) - duration_ms) || 1 // Prevent infinite results
+        const d_duration =
+          Math.abs((track.duration_ms || 0) - duration_ms) || 0.1 // Prevent infinite results
 
-        return dot_product / denominator / d_duration
+        debugger
+        console.log(d_duration)
+        return dot_product / (denominator * d_duration ** 2)
       }
 
       const parseTime = (t: string) =>
@@ -140,6 +144,11 @@ export const scrapeSearch = async (
 
           const url = name_el ? (name_el as any).href || '' : '-'
 
+          const artist_el = r.querySelector(
+              '.style-scope.ytd-channel-name.complex-string'
+            ),
+            artist = normalize(artist_el ? artist_el.textContent || '' : '')
+
           const matches = title_regexes.reduce((acc, r) => {
             if (r.test(name)) acc++
             return acc
@@ -147,6 +156,7 @@ export const scrapeSearch = async (
 
           const t: TrackInner = {
             name,
+            artist,
             url,
             duration_ms,
             matches,
@@ -154,10 +164,11 @@ export const scrapeSearch = async (
           }
 
           t.score = score_of_track(t)
+          console.log(t.score)
           return t
         })
         .reduce((matched_res, track) =>
-          !matched_res || track.score < matched_res.score ? track : matched_res
+          !matched_res || track.score > matched_res.score ? track : matched_res
         )
 
       delete match.matches
@@ -171,7 +182,12 @@ export const scrapeSearch = async (
   )
 
   await page.close()
-  console.log(`\n${track.album.artists[0].name} - ${track.name} => ${res.name}`)
+  process.env['NODE_ENV'] === 'development' &&
+    console.log(
+      `\n${track.album.artists.map(a => a.name).join(', ')} - ${
+        track.name
+      } => ${res.name}`
+    )
   res.name = `${track.name} ~ ${track.album.artists
     .map(a => a.name)
     .join(', ')}`

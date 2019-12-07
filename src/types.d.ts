@@ -7,6 +7,7 @@ declare global {
       GOTO: number
       REPEAT: boolean
       SLOW_CRASH: number
+      NODE_ENV: 'production' | 'development'
     }
   }
 }

@@ -4,38 +4,30 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-
     {
       "type": "node",
       "request": "launch",
       "name": "Launch Program",
       "program": "${workspaceFolder}\\index.js",
-      "outFiles": [
-        "${workspaceFolder}/**/*.js"
-      ]
+      "outFiles": ["${workspaceFolder}/**/*.js"]
     },
     {
       "type": "node",
       "request": "launch",
       "name": "typescript",
-      "runtimeArgs": [
-        "-r",
-        "ts-node\/register"
-      ],
-      "args": [
-        "${file}"
-      ]
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "args": ["${file}"]
     },
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug server",
-      "runtimeArgs": [
-        "-r",
-        "ts-node\/register"
-      ],
+      "name": "Debug index",
+      "runtimeArgs": ["-r", "ts-node/register"],
       "args": [
-        "${workspaceFolder}\/debug.ts"
+        "${workspaceFolder}/src/index.ts",
+        "https://open.spotify.com/playlist/4gDS9MAvJqWDSuilvOv1VI?si=uiBlTxnPSAWQklssHxTtVg",
+        "out-pen",
+        "1"
       ]
     },
     {
@@ -47,7 +39,7 @@
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
       "windows": {
-        "program": "${workspaceFolder}/node_modules/jest/bin/jest",
+        "program": "${workspaceFolder}/node_modules/jest/bin/jest"
       }
     }
   ]
