@@ -85,31 +85,27 @@ export const scrapeSearch = async (
 
         const w2 = words_track.reduce(count, new Array(words.length).fill(0))
 
-        // -------- Make vectors accounting for meta data -------- //
-        const v1 = w1
-        const v2 = w2
-
         // -------- Calc the cos -------- //
-        const dot_product = v1.reduce((acc, a, i) => (acc += a * v2[i]), 0)
+        const dot_product = w1.reduce((acc, a, i) => (acc += a * w2[i]), 0)
 
         const denominator = Math.sqrt(
-          v1.reduce((acc, x) => (acc += x ** 2)) *
-            v2.reduce((acc, x) => (acc += x ** 2))
+          w1.reduce((acc, x) => (acc += x ** 2)) *
+            w2.reduce((acc, x) => (acc += x ** 2))
         )
 
         const d_duration =
-          Math.abs((track.duration_ms || 0) - duration_ms) || 0.1 // Prevent infinite results
+          Math.abs((track.duration_ms || 0) - duration_ms) || 0.01 // Prevent infinite results
 
         debugger
         console.log(d_duration)
-        return dot_product / (denominator * d_duration ** 2)
+        return dot_product / (denominator * d_duration**2)
       }
 
       const parseTime = (t: string) =>
         t
           .split(':')
           .reverse()
-          .map((a, i) => (+a || 0) * 60 ** i)
+          .map((a, i) => (+a || 0) * 60 ** i) 
           .reduce((acc, x) => (acc += x), 0)
 
       const title_regexes = `${title} ${author}`

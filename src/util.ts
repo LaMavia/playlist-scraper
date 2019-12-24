@@ -1,4 +1,5 @@
 import pptr from 'puppeteer'
+import { num } from './env'
 
 type reject = <T>(reason?: T) => void
 
@@ -10,7 +11,7 @@ export const click = (
 ): Promise<any> =>
   page
     .waitForSelector(selector, {
-      timeout: process.env['GOTO'],
+      timeout: num("GOTO"),
     })
     .then(() => page.click(selector))
     .catch(_ => rej && rej())
@@ -43,5 +44,6 @@ export const keep_going = (page: pptr.Page, url: string, toleration: number) =>
     res(false)
   })
 
+export type LogFunction = (msg: string) => void
 export const log = (i: number, t: number, ui: any) => (msg: string) =>
   ui.updateBottomBar(`[${i}/${t}] ${msg}`)
