@@ -19,7 +19,7 @@ const waitForUrl = (
   page: pptr.Page,
   buttonFailTimeout: NodeJS.Timeout,
   downloadClicker: NodeJS.Timeout,
-  log: LogFunction,
+  // log: LogFunction,
   track: YT.Track
 ) =>
   new Promise<string>((res, rej) => {
@@ -35,7 +35,7 @@ const waitForUrl = (
       })
       .on('response', async e => {
         if (e.url().match(/\.mp3/i) && !e.ok()) {
-          log(`Failed to download ${track.name}`)
+          // log(`Failed to download ${track.name}`)
           await wait(500)
           rej(false)
         }
@@ -49,7 +49,7 @@ const waitForUrl = (
 const downloadURL = (
   url: string,
   track: YT.Track,
-  log: LogFunction,
+  // log: LogFunction,
   page: pptr.Page,
   out: string
 ) =>
@@ -65,7 +65,7 @@ const downloadURL = (
       responseType: 'stream',
     })
       .then(r => {
-        log(`Downloading ${track.name}`)
+        // log(`Downloading ${track.name}`)
         const dist = fs.createWriteStream(resolve(download_path), {
           encoding: 'utf-8',
         })
@@ -86,7 +86,7 @@ const downloadURL = (
               .then(res)
               .catch(async e => {
                 if (/closeTarget/gi.test(String(e))) return
-                log(`Error while downloading: ${e}`)
+                // log(`Error while downloading: ${e}`)
                 await wait(2000)
                 console.log('🐱')
               })
@@ -97,11 +97,11 @@ const downloadURL = (
           downloadedSize += c.length
           // -------- Refress iff is a major download -------- //
           if (c.length / totalSize > 0.00001) slow_crash.refresh()
-          log(
-            `${track.name} [${((downloadedSize / totalSize) * 100).toFixed(
-              2
-            )}%]`
-          )
+          // log(
+          //   `${track.name} [${((downloadedSize / totalSize) * 100).toFixed(
+          //     2
+          //   )}%]`
+          // )
         })
 
         // -------- Check for the integrity of the download -------- //
@@ -122,17 +122,16 @@ export const download = async (
   track: YT.Track,
   out: string,
   browser: pptr.Browser,
-  ui: any,
   index: number,
   total: number
 ) =>
   new Promise<void>(async (res, rej) => {
-    const log = mklog(index, total, ui)
+    // const log = mklog(index, total, ui)
     const page = await browser.newPage()
 
     const selectors = {
       urlInput:
-        '#layout > header > div.container.header__container > div.convert-form > div.container > div.convert-form__input-container > label > input',
+        'input[name=video_url]',
       submitButton:
         '#layout > header > div.container.header__container > div.convert-form > div.container > div:nth-child(2) > div > button',
       downloadButton:
@@ -140,15 +139,17 @@ export const download = async (
     }
 
     page.on('dialog', d => d.dismiss())
-    if (await keep_going(page, `https://2conv.com/`, 5).catch(() => true))
-      return rej(true)
+    const x = await keep_going(page, `https://2conv.com/pl12/`, 5).catch(
+      () => true
+    )
+    if (x) return rej(true)
 
     await page.waitForSelector(selectors.urlInput).catch(rej)
     await page.type(selectors.urlInput, track.url)
-    log('Have just typed-in the url')
+    // log('Have just typed-in the url')
     await click(page, selectors.submitButton)
 
-    log('Clicked the "Process" button')
+    // log('Clicked the "Process" button')
     const buttonFailTimeout = setTimeout(rej, num('BUTTON_FAIL'))
     await page.setRequestInterception(true)
     const downloadClicker = setInterval(async () => {
@@ -159,17 +160,17 @@ export const download = async (
       page,
       buttonFailTimeout,
       downloadClicker,
-      log,
+      // log,
       track
     ).catch(() => {
       rej()
       return ''
     })
-    await downloadURL(url, track, log, page, out)
+    await downloadURL(url, track, page, out)
       .then(res)
       .catch(rej)
 
-    log('Clicked the "Download" button')
+    // log('Clicked the "Download" button')
     buttonFailTimeout.refresh()
 
     // -------- Check for the unable-to-download monad -------- //

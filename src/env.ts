@@ -1,4 +1,5 @@
 import dotenv from 'dotenv'
+import cl from "cluster"
 
 const DEFAULT_ENV = {
   BUTTON_FAIL: 15000,
@@ -28,7 +29,7 @@ export const load_env = () => {
           break
       }
 
-    console.log(`${key} = ${process.env[key]} [${typeof process.env[key]}]`)
+    cl.isMaster && console.log(`${key} = ${process.env[key]} [${typeof process.env[key]}]`)
   }
 }
 
