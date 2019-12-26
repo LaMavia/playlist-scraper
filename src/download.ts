@@ -2,25 +2,23 @@ import * as YT from './youtube'
 import axios, { AxiosResponse } from 'axios'
 import fs from 'fs-extra'
 import { resolve } from 'path'
-import { wait, click, keep_going, log as mklog, LogFunction } from './util'
+import {
+  wait,
+  click,
+  keep_going,
+  log as mklog,
+  LogFunction,
+  send,
+} from './util'
 import pptr from 'puppeteer'
 import { clearInterval } from 'timers'
 import { num } from './env'
-
-const watch_id_rex = /v=([-_\w]+)/i
-const get_id = (t: YT.Track) => {
-  const matches = t.url.match(watch_id_rex)
-  if (!matches) throw new Error(`Error matching "${t.url}" for id`)
-
-  return matches[1] as string
-}
+import { Message, MessageType } from './message'
 
 const waitForUrl = (
   page: pptr.Page,
   buttonFailTimeout: NodeJS.Timeout,
-  downloadClicker: NodeJS.Timeout,
-  // log: LogFunction,
-  track: YT.Track
+  downloadClicker: NodeJS.Timeout
 ) =>
   new Promise<string>((res, rej) => {
     page
@@ -49,7 +47,6 @@ const waitForUrl = (
 const downloadURL = (
   url: string,
   track: YT.Track,
-  // log: LogFunction,
   page: pptr.Page,
   out: string
 ) =>
@@ -65,13 +62,16 @@ const downloadURL = (
       responseType: 'stream',
     })
       .then(r => {
-        // log(`Downloading ${track.name}`)
         const dist = fs.createWriteStream(resolve(download_path), {
           encoding: 'utf-8',
         })
 
-        const totalSize = +r.headers['content-length']
-        let downloadedSize = 0
+        const total = +r.headers['content-length']
+        let progress = 0
+        const make_progress = () => {
+          const percent = ((progress / total) * 100).toFixed(1)
+          return `${percent.length >= 3 ? percent : '0' + percent}%`
+        }
         let slow_crash = setTimeout(() => {
           fs.removeSync(download_path)
           r.data.destroy()
@@ -79,37 +79,50 @@ const downloadURL = (
           rej(true)
         }, num('SLOW_CRASH'))
 
-        r.data.on('close', async () => {
-          !page.isClosed() &&
-            (await page
+        r.data.on(
+          'close',
+          () =>
+            !page.isClosed() &&
+            page
               .close()
               .then(res)
-              .catch(async e => {
+              .catch(e => {
                 if (/closeTarget/gi.test(String(e))) return
-                // log(`Error while downloading: ${e}`)
-                await wait(2000)
-                console.log('🐱')
+
+                send({
+                  type: MessageType.Status,
+                  ok: false,
+                  err: String(e),
+                  progress: make_progress(),
+                  track,
+                })
               })
-              .finally(() => clearTimeout(slow_crash)))
-        })
+              .finally(() => clearTimeout(slow_crash))
+        )
 
         r.data.on('data', (c: any) => {
-          downloadedSize += c.length
-          // -------- Refress iff is a major download -------- //
-          if (c.length / totalSize > 0.00001) slow_crash.refresh()
-          // log(
-          //   `${track.name} [${((downloadedSize / totalSize) * 100).toFixed(
-          //     2
-          //   )}%]`
-          // )
+          progress += c.length
+          // -------- Refresh iff is a major download -------- //
+          if (c.length / total > 0.00001) {
+            slow_crash.refresh()
+          }
+
+          // Prevents flickering
+          if (c.length/total > 0.00035) {
+            send({
+              type: MessageType.Status,
+              ok: true,
+              progress: make_progress(),
+              track,
+              err: null,
+            })
+          }
         })
 
         // -------- Check for the integrity of the download -------- //
         dist.on('close', () => {
           dist.cork()
-          downloadedSize == totalSize
-            ? res()
-            : (fs.removeSync(download_path), rej(true))
+          progress == total ? res() : (fs.removeSync(download_path), rej(true))
         })
 
         return r.data.pipe(dist)
@@ -121,17 +134,20 @@ const downloadURL = (
 export const download = async (
   track: YT.Track,
   out: string,
-  browser: pptr.Browser,
-  index: number,
-  total: number
+  browser: pptr.Browser
 ) =>
   new Promise<void>(async (res, rej) => {
-    // const log = mklog(index, total, ui)
+    send({
+      type: MessageType.Status,
+      err: null,
+      ok: true,
+      progress: '2conv',
+      track,
+    })
     const page = await browser.newPage()
 
     const selectors = {
-      urlInput:
-        'input[name=video_url]',
+      urlInput: 'input[name=video_url]',
       submitButton:
         '#layout > header > div.container.header__container > div.convert-form > div.container > div:nth-child(2) > div > button',
       downloadButton:
@@ -159,9 +175,7 @@ export const download = async (
     const url = await waitForUrl(
       page,
       buttonFailTimeout,
-      downloadClicker,
-      // log,
-      track
+      downloadClicker
     ).catch(() => {
       rej()
       return ''

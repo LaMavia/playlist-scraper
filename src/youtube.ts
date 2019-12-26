@@ -1,5 +1,7 @@
 import * as Spotify from './spotify'
 import pptr from 'puppeteer'
+import { send } from './util'
+import { MessageType } from './message'
 
 const makeSearchURI = (track: Spotify.Track): string =>
   `https://www.youtube.com/results?search_query=${encodeURIComponent(
@@ -22,6 +24,13 @@ export const scrapeSearch = async (
   track: Spotify.Track | Track,
   browser: pptr.Browser
 ): Promise<Track> => {
+  send({
+    type: MessageType.Status,
+    err: null,
+    ok: true,
+    progress: `YT`,
+    track,
+  })
   // -------- Checking whether the track's already been scraped  -------- //
   if ((track as Track).url) return track as Track
 
@@ -98,14 +107,14 @@ export const scrapeSearch = async (
 
         debugger
         console.log(d_duration)
-        return dot_product / (denominator * d_duration**2)
+        return dot_product / (denominator * d_duration ** 2)
       }
 
       const parseTime = (t: string) =>
         t
           .split(':')
           .reverse()
-          .map((a, i) => (+a || 0) * 60 ** i) 
+          .map((a, i) => (+a || 0) * 60 ** i)
           .reduce((acc, x) => (acc += x), 0)
 
       const title_regexes = `${title} ${author}`
@@ -114,19 +123,9 @@ export const scrapeSearch = async (
         .filter(Boolean)
         .map(t => new RegExp(t.replace(/[\.\\\*\+\[\]\(\)]*/gi, ''), 'i'))
 
-      const score_word_match = (t: TrackInner) => t.matches / 1000
-
       const score_of_track = (t: TrackInner) =>
         score({ name: title, duration_ms, author } as any, t) /
         ((t.name || '').split(/\s+/gi).length + 1)
-
-      /**
-       * (t: TrackInner): number =>
-        t.matches /
-        (t.duration_ms && duration_ms <= t.duration_ms
-          ? duration_ms - (t.duration_ms || 0)
-          : 10 ** 15)
-       */
 
       const match = Array.from(document.querySelectorAll(RESULT_SEL))
         .map(r => {
@@ -184,8 +183,9 @@ export const scrapeSearch = async (
         track.name
       } => ${res.name}`
     )
-  res.name = `${track.name} ~ ${track.album.artists
-    .map(a => a.name)
-    .join(', ')}`
-  return res
+  return {
+    ...res,
+    __id: track.__id,
+    name: `${track.name} ~ ${track.album.artists.map(a => a.name).join(', ')}`,
+  }
 }

@@ -45,6 +45,7 @@ export const getAccessToken = (): Promise<TokenRes> => {
 }
 
 export interface Track extends Object {
+  __id: string
   name: string
   duration_ms: number
   album: {
