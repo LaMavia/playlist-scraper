@@ -13,7 +13,7 @@ import { cpus } from 'os'
 import { Message, MessageType } from './message'
 
 load_env()
-const main = async () => {
+const main = () => new Promise(async (res, rej) => {
   const [url_or_id, out, repeat_] = process.argv.slice(2)
   const repeat = ['t', 'T', 'true', 'True', 'y', 'Y', 'Yes', '1'].includes(
     repeat_
@@ -30,9 +30,7 @@ const main = async () => {
   })
 
   const id = Spotify.getID(url_or_id)
-  const ui = new inq.ui.BottomBar()
 
-  ui.updateBottomBar('Fetching the Spotify API')
   let { items } = await Playlist.scrapePlaylist(id).catch(r => {
     console.error(r)
     return { items: [] } as Spotify.PlaylistResponse
@@ -41,7 +39,6 @@ const main = async () => {
     __id: uuid(),
     ...x.track,
   }))
-  ui.updateBottomBar(`Fetched ${items.length} items from the Spotify API`)
 
   const totalItems = items.length
   let downloaded: Spotify.Track[] = []
@@ -62,6 +59,13 @@ const main = async () => {
     )
   }
 
+  cl.on("exit", (w, c, sig) => {
+    if(sig != "SIGKILL" && c != 0) {
+      w.kill()
+      cl.fork()
+    }
+  })
+
   cl.on('message', (w, m: Message) => {
     switch (m.type) {
       case MessageType.End:
@@ -69,7 +73,7 @@ const main = async () => {
           w.kill()
           if (Object.keys(cl.workers).length === 0) {
             console.log('\nClosing the browser')
-            process.exit(0)
+            res()
           }
         }
         break
@@ -79,15 +83,24 @@ const main = async () => {
           if (m.ok) downloaded.push(m.track)
           else tracks.unshift(m.track)
           const nextTrack = tracks.pop()
-          w.send({
-            type: MessageType.Order,
-            track: nextTrack,
-          } as Message)
+          if (nextTrack) 
+            w.send({
+              type: MessageType.Order,
+              track: nextTrack,
+            } as Message)
+          else 
+            w.send({
+              type: MessageType.End,
+            } as Message)
         }
         break
       case MessageType.Status:
         {
-          processing.set(m.track.__id, `[${m.progress}] ${m.track.name}`)
+          m.track &&
+            processing.set(
+              m.track.__id,
+              `[${m.progress}] ${m.track.name}`
+            )
           display()
         }
         break
@@ -111,33 +124,42 @@ const main = async () => {
   }
 
   display()
-}
+})
 
 const setupBrowser = () =>
   pptr.launch({
     headless: true,
     timeout: num('GOTO'),
-    args: ['--incognito', '--lang=en-US,en'],
+    args: ['--lang=en-US,en'],
   })
 
 // Resolves when gets an empty message
 const makeScraper = () =>
   new Promise(async (res, rej) => {
     const browser = await setupBrowser()
+    process.on("beforeExit", () => {
+      browser.process().kill("SIGKILL")
+    })
     process.on('message', async (msg: Message) => {
       try {
         switch (msg.type) {
           case MessageType.End:
             {
-              await browser.close()
-              send({
-                type: MessageType.End,
-              })
-              res()
+              await browser.close().then(() => {
+                send({
+                  type: MessageType.End,
+                })
+              }).then(res)
             }
             break
           case MessageType.Order:
             {
+              if (!msg.track) {
+                send({
+                  type: MessageType.End
+                })
+                return res()
+              }
               const ytTrack = await YT.scrapeSearch(msg.track, browser)
               ytTrack.album = msg.track.album
               const ok = await Download.download(
@@ -157,12 +179,15 @@ const makeScraper = () =>
             break
         }
 
-        for (const page of (await browser.pages()).slice(1) || []) {
-          !page.isClosed() &&
-            (await page.close().catch(_ => {
-              console.log('Error closing a page, but keep calm and scrape on!')
-            }))
-        }
+        if (browser.isConnected())
+          for (const page of (await browser.pages().catch(() => [])).slice(1) || []) {
+            !page.isClosed() &&
+              (await page.close().catch(_ => {
+                console.log(
+                  'Error closing a page, but keep calm and scrape on!'
+                )
+              }))
+          }
       } catch (err) {
         rej(err)
       }
@@ -175,6 +200,8 @@ const makeScraper = () =>
 ;(async () => {
   if (cl.isMaster) await main()
   else {
-    await makeScraper()
+    await makeScraper().then(() => {
+      process.exit(0)
+    })
   }
 })()

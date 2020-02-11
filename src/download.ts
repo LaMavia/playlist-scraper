@@ -108,7 +108,7 @@ const downloadURL = (
           }
 
           // Prevents flickering
-          if (c.length/total > 0.00035) {
+          if (c.length / total > 0.00035) {
             send({
               type: MessageType.Status,
               ok: true,
@@ -148,10 +148,10 @@ export const download = async (
 
     const selectors = {
       urlInput: 'input[name=video_url]',
-      submitButton:
-        '#layout > header > div.container.header__container > div.convert-form > div.container > div:nth-child(2) > div > button',
-      downloadButton:
-        '#layout > header > div.container.header__container > div.convert-form > div > div.download__buttons > button',
+      submitButton: '.convert-form__container button',
+      // '#layout > header > div.container.header__container > div.convert-form > div.container > div:nth-child(2) > div > button',
+      downloadButton: '.button.button_iconed.button_red.download-track__btn',
+      // '#layout > header > div.container.header__container > div.convert-form > div > div.download__buttons > button',
     }
 
     page.on('dialog', d => d.dismiss())

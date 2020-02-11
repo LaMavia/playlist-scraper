@@ -21,7 +21,7 @@ export const getID = (s: string): string => {
 
 export const getAccessToken = (): Promise<TokenRes> => {
   const encoded = `Basic ${encodeBase64(
-    `${process.env['__ClIENT_ID__']}:${process.env['__CLIENT_SECRET__']}`
+    `${process.env['__CLIENT_ID__']}:${process.env['__CLIENT_SECRET__']}`
   )}`
 
   const headers = {
