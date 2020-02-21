@@ -23,7 +23,7 @@ interface TrackInner extends Partial<Track> {
 export const scrapeSearch = async (
   track: Spotify.Track | Track,
   browser: pptr.Browser
-): Promise<Track> => {
+): Promise<Track | null> => {
   send({
     type: MessageType.Status,
     err: null,
@@ -40,9 +40,30 @@ export const scrapeSearch = async (
   })
   await page.goto(makeSearchURI(track))
 
-  await page.waitForSelector(
-    'span.style-scope.ytd-thumbnail-overlay-time-status-renderer'
-  )
+  const cont = await page
+    .waitForSelector(
+      'span.style-scope.ytd-thumbnail-overlay-time-status-renderer',
+      {
+        timeout: 5000,
+      }
+    )
+    .then(() => true)
+    .catch(err => {
+      // console.log(err)
+      return false
+    })
+
+  if (!cont) {
+    send({
+      type: MessageType.Status,
+      err: 'no found',
+      ok: false,
+      progress: 'YT',
+      track,
+    })
+    !page.isClosed() && (await page.close())
+    return null
+  }
 
   const res = await page.evaluate(
     (duration_ms: number, title: string, author: string): Track => {

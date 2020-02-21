@@ -23,7 +23,9 @@ const waitForUrl = (
   new Promise<string>((res, rej) => {
     page
       .on('request', async e => {
-        if (e.url().match(/\.mp3/i)) {
+        const type = e.resourceType()
+        if (['image', 'stylesheet', 'font'].some(t => t === type)) e.abort()
+        else if (e.url().match(/\.mp3/i)) {
           await e.abort('blockedbyclient')
           clearTimeout(buttonFailTimeout)
           clearInterval(downloadClicker)
@@ -161,13 +163,14 @@ export const download = async (
     if (x) return rej(true)
 
     await page.waitForSelector(selectors.urlInput).catch(rej)
-    await page.type(selectors.urlInput, track.url)
+    await page.type(selectors.urlInput, track.url).catch(rej)
     // log('Have just typed-in the url')
-    await click(page, selectors.submitButton)
+    await click(page, selectors.submitButton).catch(rej)
 
     // log('Clicked the "Process" button')
     const buttonFailTimeout = setTimeout(rej, num('BUTTON_FAIL'))
     await page.setRequestInterception(true)
+
     const downloadClicker = setInterval(async () => {
       await click(page, selectors.downloadButton)
     }, num('BUTTON_FAIL') / 4)
